@@ -15,19 +15,22 @@ CORS(playready_bp, resources={r"/*": {"origins": "*"}}, supports_credentials=Tru
 @cross_origin()
 def extension():
     if not request.is_json:
-        return jsonify({"error": "Missing JSON in request"}), 400
+        response_data = {"message": "Missing JSON in request."}
+        return jsonify({"responseData": response_data}), 400
     
     data = request.get_json()
     action = data.get('action', None)
     
     if not action:
-        return jsonify({"error": "Missing action in request"}), 400
+        response_data = {"message": "Missing action in request."}
+        return jsonify({"responseData": response_data}), 400
     
     if action == "Challenge?":
         pssh = data.get('pssh', None)
     
         if not pssh:
-            return jsonify({"error": "Missing pssh in request"}), 400
+            response_data = {"message": "Missing pssh in request."}
+            return jsonify({"responseData": response_data}), 400
     
         playready = PLAYREADY()
         playready.pssh = pssh
@@ -37,11 +40,13 @@ def extension():
         license = data.get('license', None)
     
         if not license:
-            return jsonify({"error": "Missing license in request"}), 400
+            response_data = {"message": "Missing license in request."}
+            return jsonify({"responseData": response_data}), 400
     
         playready = PLAYREADY()
         playready.license = license
         return playready.get_license_keys()
     
     else:
-        return jsonify({"error": "Unknown action"}), 400
+        response_data = {"message": "Unknown action."}
+        return jsonify({"responseData": response_data}), 400
