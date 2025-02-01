@@ -1,28 +1,33 @@
-# PlayReady-ProxyAPI
-`PlayReady-ProxyAPI` is an API service designed to work alongside [PlayReady-Proxy](https://github.com/ThatNotEasy/PlayReady-Proxy), enabling seamless integration for handling `PlayReady DRM` operations.
+# PlayReadyProxy-API
+`PlayReadyProxy-API` is an API service designed to work alongside [PlayReadyProxy](https://github.com/ThatNotEasy/PlayReadyProxy) (Edge Extension), enabling seamless integration for handling `PlayReady DRM` operations.
 
 ## Installation
 - Perform a `git clone`
-
 ```
-git clone https://github.com/ThatNotEasy/PlayReady-ProxyAPI
-```
-
-- Create, activate a virtual environment & install depencies
-
-```
-$ python -m venv venv
-
-// For Wingay
-$ venv\Scripts\activate
-
-// For Linux
-$ source venv/bin/activate
-
-$ pip install -r requirements.txt
+git clone https://github.com/ThatNotEasy/PlayReadyProxy-API
 ```
 
-- Run Flask:
+- Create a Virtual Environment & Activate
+```
+python -m venv venv
+```
+
+- Wingay
+```
+venv\Scripts\activate
+```
+
+- Linux
+```
+source venv/bin/activate
+```
+
+- Install depencies
+```
+pip install -r requirements.txt
+```
+
+- Run Flask
 
 ```
 flask run
