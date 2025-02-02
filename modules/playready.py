@@ -24,7 +24,7 @@ class PLAYREADY:
 
     def get_license_challenge(self):
         device = Device.load(self.device)
-        cdm = Cdm.from_device(self.device)
+        cdm = Cdm.from_device(device)
         pssh = PSSH(self.pssh)
         wrm_headers = pssh.get_wrm_headers(downgrade_to_v4=False)
         raw_challenge = cdm.get_license_challenge(wrm_headers[0])
