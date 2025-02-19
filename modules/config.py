@@ -4,6 +4,7 @@ from modules.logging import setup_logging
 from flask import request, jsonify
 
 API_KEY_FILE = 'APIKEY.json'
+logging = setup_logging()
 
 def setup_config():
     config = configparser.ConfigParser()
@@ -15,10 +16,10 @@ def load_api_keys():
         with open(API_KEY_FILE, 'r') as file:
             return json.load(file)
     except FileNotFoundError:
-        logger.error("APIKEY.json file not found.")
+        logging.error("APIKEY.json file not found.")
         return []
     except json.JSONDecodeError:
-        logger.error("Error decoding APIKEY.json.")
+        logging.error("Error decoding APIKEY.json.")
         return []
 
 def save_api_keys(api_keys):
@@ -57,9 +58,11 @@ def apikey_required(func):
         provided_key = request.headers.get('X-API-KEY')
         if not provided_key:
             logging.error("X-API-KEY header is missing.")
-            return jsonify({"responseData": "Opss! API key is missing"}), 403
+            response_data = {"message": "Opss! X-API-KEY is missing."}
+            return jsonify({"responseData": response_data}), 403
         if not is_valid_api_key(provided_key):
             logging.error("Invalid X-API-KEY.")
-            return jsonify({"responseData": "Opss! Invalid API key"}), 403
+            response_data = {"message": "Opss! Invalid APIKEY :P"}
+            return jsonify({"responseData": response_data}), 403
         return func(*args, **kwargs)
     return decorated_function

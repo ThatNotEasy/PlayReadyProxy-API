@@ -1,2 +1,3 @@
-[PLAYREADY]
-DEVICE = device/example.prd # your device filename
+[CDM]
+DEVICE_FILE = device/ # DEVICE FILENAME
+DEVICE_NAME = # DEVICE NAME
