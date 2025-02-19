@@ -1,7 +1,6 @@
-import requests, base64, logging, coloredlogs, re
+import requests, base64, coloredlogs, re
 import xml.dom.minidom as Dom
 import xml.etree.ElementTree as ET
-import json
 
 from flask import jsonify
 from pathlib import Path
@@ -11,7 +10,7 @@ from modules.config import setup_config
 from pyplayready.system.pssh import PSSH
 from pyplayready.device import Device
 from pyplayready.cdm import Cdm
-from pyplayready.exceptions import InvalidSession, InvalidLicense
+from pyplayready.exceptions import InvalidSession, InvalidLicense, InvalidPssh
 
 class PLAYREADY:
     _instance = None  # Singleton
@@ -91,6 +90,7 @@ class PLAYREADY:
         
 # ============================================================================================================================== #
 
+
     def get_challenges(self, device):
         session_entry = self.store_session.get(device)
         if not session_entry or "cdm" not in session_entry:
@@ -103,7 +103,7 @@ class PLAYREADY:
         except ValueError:
             return jsonify({"responseData": {"message": "Invalid session_id format."}}), 400
 
-        if not self.pssh.startswith("<WRMHEADER"):
+        if not "WRMHEADER" in self.pssh:
             try:
                 pssh = PSSH(self.pssh)
                 if pssh.wrm_headers:
@@ -121,25 +121,32 @@ class PLAYREADY:
         response_data = {"challenge_b64": base64.b64encode(license_request.encode() if isinstance(license_request, str) else license_request).decode()}
         return jsonify({"responseData": response_data}), 200
 
+
+
 # ============================================================================================================================== #
 
     def get_keys(self, device):
+        self.logging.debug(f"[DEBUG] get_keys called with device: {device}")
         session_entry = self.store_session.get(device)
         if not session_entry or "cdm" not in session_entry:
+            self.logging.debug(f"[DEBUG] No CDM session found for device: {device}")
             return jsonify({"responseData": {"message": f"No Cdm session for {device} has been opened yet. No session to use."}}), 400
 
         cdm = session_entry["cdm"]
         try:
             session_id = bytes.fromhex(self.session_id)
         except ValueError:
+            self.logging.debug("[DEBUG] Invalid session_id format")
             return jsonify({"responseData": {"message": "Invalid session_id format."}}), 400
 
         if not isinstance(self.license, str) or not self.license.strip():
+            self.logging.debug("[DEBUG] Invalid or empty license_message")
             return jsonify({"responseData": {"message": "Invalid or empty license_message."}}), 400
 
         try:
             self.logging.info(f"Parsing license for session {session_id.hex()} on device {device}")
             decoded_license = base64.b64decode(self.license).decode("utf-8", errors="ignore")
+            self.logging.debug(f"[DEBUG] Decoded license: {decoded_license[:50]}...")
             cdm.parse_license(session_id, decoded_license)
             keys = cdm.get_keys(session_id)
             response_keys = [
@@ -149,12 +156,16 @@ class PLAYREADY:
                 }
                 for key in keys
             ]
+            self.logging.debug(f"[DEBUG] Extracted keys: {response_keys}")
 
         except InvalidSession:
+            self.logging.debug(f"[DEBUG] Invalid Session ID '{session_id.hex()}', possibly expired")
             return jsonify({"responseData": {"message": f"Invalid Session ID '{session_id.hex()}', it may have expired."}}), 400
         except InvalidLicense as e:
+            self.logging.debug(f"[DEBUG] Invalid License: {e}")
             return jsonify({"responseData": {"message": f"Invalid License, {e}"}}), 400
         except Exception as e:
+            self.logging.debug(f"[DEBUG] Unexpected error: {e}")
             return jsonify({"responseData": {"message": f"Error, {e}"}}), 500
 
         return jsonify({
@@ -163,6 +174,7 @@ class PLAYREADY:
                 "keys": response_keys
             }
         }), 200
+
     
 # ============================================================================================================================== #
         

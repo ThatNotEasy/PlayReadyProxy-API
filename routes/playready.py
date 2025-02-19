@@ -40,21 +40,24 @@ def close_device(device, session_id):
 @apikey_required
 @cross_origin()
 def get_challenge(device):
-
     playready = PLAYREADY()
+
     if playready.device_name != device:
         return jsonify({"responseData": {"message": "Ops! Invalid Device :P"}}), 404
 
     data = request.get_json()
-    pssh = data.get('pssh', None)
-    session_id = data.get('session_id', None)
+    playready.logging.debug(f"Request JSON data: {data}")
+
+    pssh = data.get("pssh")
+    session_id = data.get("session_id")
 
     if not pssh or not session_id:
         return jsonify({"responseData": {"message": "Missing required fields in JSON body."}}), 400
-    
+
     playready.pssh = pssh
     playready.session_id = session_id
     return playready.get_challenges(device)
+
 
 # ============================================================================================================================== #
 
