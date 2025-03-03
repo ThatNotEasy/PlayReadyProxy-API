@@ -8,7 +8,7 @@ def clear_terminal():
     os.system('cls' if os.name == 'nt' else 'clear')
     
 def banners():
-    clear_terminal()
+    #clear_terminal()
     banners = """
     ██████╗ ██╗      █████╗ ██╗   ██╗██████╗ ███████╗ █████╗ ██████╗ ██╗   ██╗      █████╗ ██████╗ ██╗
     ██╔══██╗██║     ██╔══██╗╚██╗ ██╔╝██╔══██╗██╔════╝██╔══██╗██╔══██╗╚██╗ ██╔╝     ██╔══██╗██╔══██╗██║

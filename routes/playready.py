@@ -54,6 +54,14 @@ def get_challenge(device):
     if not pssh or not session_id:
         return jsonify({"responseData": {"message": "Missing required fields in JSON body."}}), 400
 
+    # Verify that the session exists in store_session
+    if device not in playready.store_session:
+        return jsonify({"responseData": {"message": f"No active session for device {device}."}}), 400
+        
+    stored_session = playready.store_session[device]
+    if session_id != stored_session["session_id"]:
+        return jsonify({"responseData": {"message": f"Invalid session ID: {session_id}"}}), 400
+
     playready.pssh = pssh
     playready.session_id = session_id
     return playready.get_challenges(device)
@@ -75,6 +83,14 @@ def get_key(device):
 
     if not license or not session_id:
         return jsonify({"responseData": {"message": "Missing required fields in JSON body."}}), 400
+
+    # Verify that the session exists in store_session
+    if device not in playready.store_session:
+        return jsonify({"responseData": {"message": f"No active session for device {device}."}}), 400
+        
+    stored_session = playready.store_session[device]
+    if session_id != stored_session["session_id"]:
+        return jsonify({"responseData": {"message": f"Invalid session ID: {session_id}"}}), 400
 
     playready.license = license
     playready.session_id = session_id
