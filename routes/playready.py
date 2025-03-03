@@ -46,8 +46,6 @@ def get_challenge(device):
         return jsonify({"responseData": {"message": "Ops! Invalid Device :P"}}), 404
 
     data = request.get_json()
-    playready.logging.debug(f"Request JSON data: {data}")
-
     pssh = data.get("pssh")
     session_id = data.get("session_id")
 
@@ -84,7 +82,6 @@ def get_key(device):
     if not license or not session_id:
         return jsonify({"responseData": {"message": "Missing required fields in JSON body."}}), 400
 
-    # Verify that the session exists in store_session
     if device not in playready.store_session:
         return jsonify({"responseData": {"message": f"No active session for device {device}."}}), 400
         

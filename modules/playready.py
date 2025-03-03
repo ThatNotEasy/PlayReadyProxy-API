@@ -1,4 +1,4 @@
-import requests, base64, coloredlogs, re
+import requests, base64, coloredlogs, re, uuid
 import xml.dom.minidom as Dom
 import xml.etree.ElementTree as ET
 
@@ -39,210 +39,160 @@ class PLAYREADY:
     def open_devices(self):
         if self.device_name in self.store_session:
             existing_session_id = self.store_session[self.device_name]["session_id"]
-            self.logging.info(f"Existing session for {self.device_name}: {existing_session_id}")
-            return jsonify({
-                "responseData": {
-                    "session_id": existing_session_id,
-                    "device_name": self.device_name,
-                    "security_level": self.store_session[self.device_name]["cdm"].security_level
-                }
-            }), 200
+            response_data = {
+            "session_id": existing_session_id,
+            "device_name": self.device_name,
+            "security_level": self.store_session[self.device_name]["cdm"].security_level
+            }
+            return jsonify({"responseData": response_data}), 200
 
         cdm = Cdm.from_device(self.device)
         session_id = cdm.open().hex()
         self.store_session[self.device_name] = {"cdm": cdm, "session_id": session_id}
-        self.logging.info(f"CDM Session Opened: {session_id}")
-        return jsonify({
-            "responseData": {
-                "session_id": session_id,
-                "device_name": self.device_name,
-                "security_level": cdm.security_level
+        response_data = {
+            "session_id": session_id,
+            "device_name": self.device_name,
+            "security_level": cdm.security_level
             }
-        }), 200
+        return jsonify({"responseData": response_data}), 200
+
 
 # ============================================================================================================================== #
 
     def close_devices(self, session_id):
         session_id_str = session_id.decode() if isinstance(session_id, bytes) else session_id
         if self.device_name not in self.store_session:
-            self.logging.error(f"No active session for device {self.device_name}.")
             return jsonify({"responseData": {"message": "No active session for this device."}}), 400
 
         stored_session = self.store_session[self.device_name]
         if session_id_str != stored_session["session_id"]:
-            self.logging.error(f"Session mismatch: Expected {stored_session['session_id']}, got {session_id_str}")
             return jsonify({"responseData": {"message": "Invalid Session ID :P"}}), 404
 
         try:
             stored_session["cdm"].close(bytes.fromhex(session_id_str))
-            self.logging.info(f"CDM Session Closed: {session_id_str}")
-
             del self.store_session[self.device_name]
             return jsonify({"responseData": {"message": f"Session {session_id_str} closed successfully."}}), 200
 
         except InvalidSession:
-            self.logging.error(f"Invalid session ID: {session_id_str}")
             return jsonify({"responseData": {"message": "Invalid Session ID, it may have expired."}}), 400
 
-        except Exception as e:
-            self.logging.error(f"Error closing session: {str(e)}")
+        except Exception:
             return jsonify({"responseData": {"message": "Unexpected error while closing session."}}), 500
+
         
 # ============================================================================================================================== #
 
 
-def get_challenges(self, device):
-    try:
-        # Retrieve the session entry for the given device
-        session_entry = self.store_session.get(device)
-        if not session_entry or "cdm" not in session_entry:
-            return jsonify({"responseData": {"message": f"No CDM session for {device} has been opened yet. No session to use."}}), 400
-        
-        cdm = session_entry["cdm"]
-        self.logging.debug(f"[DEBUG] get_challenges - CDM state before: {cdm.__dict__}")
-
-        # Use the stored session ID
-        stored_session_id = bytes.fromhex(session_entry["session_id"])
-        self.logging.debug(f"[DEBUG] get_challenges - Using stored session ID: {stored_session_id.hex()}")
-
-        wrm_header = None
-        
-        # Check if the PSSH is already a WRM header
-        if self.pssh.startswith('<WRMHEADER'):
-            wrm_header = self.pssh
-            self.logging.debug(f"[DEBUG] PSSH detected as a direct WRM header")
-        else:
-            # Try decoding the base64 PSSH to see if it contains a WRM header
-            try:
-                pssh_bytes = base64.b64decode(self.pssh)
-                decoded_str = pssh_bytes.decode('utf-16-le', errors='ignore')
-                
-                if '<WRMHEADER' in decoded_str:
-                    # Extract the WRM header from the decoded PSSH
-                    start_idx = decoded_str.find('<WRMHEADER')
-                    end_idx = decoded_str.find('</WRMHEADER>') + len('</WRMHEADER>')
-                    if start_idx >= 0 and end_idx > start_idx:
-                        wrm_header = decoded_str[start_idx:end_idx]
-                        self.logging.debug(f"[DEBUG] WRM header extracted from decoded PSSH")
-                
-                # If no WRM header was found in the decoded content, try standard parsing
-                if not wrm_header:
-                    self.logging.debug(f"[DEBUG] Attempting to parse PSSH as a PSSH box")
-                    pssh = PSSH(self.pssh)
-                    if pssh.wrm_headers:
-                        wrm_header = pssh.wrm_headers[0]
-                        self.logging.debug(f"[DEBUG] PSSH parsing successful, extracted WRM header")
-                    else:
-                        self.logging.debug(f"[DEBUG] PSSH parsing successful, but no WRM header found")
-            except Exception as e:
-                self.logging.error(f"[ERROR] Error parsing PSSH: {str(e)}")
-                self.logging.debug(f"[DEBUG] Attempting to use PSSH as-is")
-                wrm_header = self.pssh  # Use the PSSH as-is as a last resort
-            
-        if not wrm_header:
-            self.logging.error(f"[ERROR] Unable to extract a valid WRM header from PSSH")
-            return jsonify({"responseData": {"message": "Unable to extract a valid WRM header from PSSH"}}), 500
-
+    def get_challenges(self, device):
         try:
-            self.logging.debug(f"[DEBUG] Requesting challenge with session_id={stored_session_id.hex()} and WRM header={wrm_header[:50]}...")
-            license_request = cdm.get_license_challenge(session_id=stored_session_id, wrm_header=wrm_header)
+            session_entry = self.store_session.get(device)
+            if not session_entry or "cdm" not in session_entry:
+                return jsonify({"responseData": {"message": f"No CDM session for {device} has been opened yet. No session to use."}}), 400
             
-            # Verify that the license request was stored in the session
-            session = cdm._Cdm__sessions.get(stored_session_id)
-            if session and hasattr(session, 'license_request') and session.license_request:
-                self.logging.debug(f"[DEBUG] License request was successfully stored in the session")
-            else:
-                self.logging.error(f"[ERROR] License request was NOT stored in the session!")
-                
-                # Attempt to manually store the license request in the session
-                if session:
-                    self.logging.debug(f"[DEBUG] Attempting to manually store the license request")
-                    session.license_request = license_request
-                    session.header = wrm_header if isinstance(wrm_header, bytes) else wrm_header.encode('utf-8')
-                    self.logging.debug(f"[DEBUG] License request manually stored in the session")
-                    
-        except InvalidSession as e:
-            self.logging.error(f"[ERROR] Invalid Session ID '{stored_session_id.hex()}': {str(e)}")
-            return jsonify({"responseData": {"message": f"Invalid Session ID '{stored_session_id.hex()}', it may have expired. Error: {str(e)}"}}), 400
-        except Exception as e:
-            self.logging.error(f"[ERROR] Error generating challenge: {str(e)}, {type(e)}")
-            return jsonify({"responseData": {"message": f"Error generating challenge: {str(e)}"}}), 500
+            cdm = session_entry["cdm"]
+            stored_session_id = bytes.fromhex(session_entry["session_id"])
 
-        # Encode the license request in base64 and return it
-        response_data = {"challenge_b64": base64.b64encode(license_request.encode() if isinstance(license_request, str) else license_request).decode()}
-        return jsonify({"responseData": response_data}), 200
-    except Exception as e:
-        self.logging.error(f"[ERROR] General error in get_challenges: {str(e)}")
-        return jsonify({"responseData": {"message": f"Error generating challenge: {str(e)}"}}), 500
+            wrm_header = None
+            if self.pssh.startswith('<WRMHEADER'):
+                wrm_header = self.pssh
+            else:
+                try:
+                    pssh_bytes = base64.b64decode(self.pssh)
+                    decoded_str = pssh_bytes.decode('utf-16-le', errors='ignore')
+                    
+                    if '<WRMHEADER' in decoded_str:
+                        start_idx = decoded_str.find('<WRMHEADER')
+                        end_idx = decoded_str.find('</WRMHEADER>') + len('</WRMHEADER>')
+                        if start_idx >= 0 and end_idx > start_idx:
+                            wrm_header = decoded_str[start_idx:end_idx]
+                    
+                    if not wrm_header:
+                        pssh = PSSH(self.pssh)
+                        if pssh.wrm_headers:
+                            wrm_header = pssh.wrm_headers[0]
+                except Exception as e:
+                    wrm_header = self.pssh
+                
+            if not wrm_header:
+                return jsonify({"responseData": {"message": "Unable to extract a valid WRM header from PSSH"}}), 500
+
+            try:
+                license_request = cdm.get_license_challenge(session_id=stored_session_id, wrm_header=wrm_header)
+                session = cdm._Cdm__sessions.get(stored_session_id)
+                if session and hasattr(session, 'license_request') and session.license_request:
+                    pass
+                else:
+                    if session:
+                        session.license_request = license_request
+                        session.header = wrm_header if isinstance(wrm_header, bytes) else wrm_header.encode('utf-8')
+                        
+            except InvalidSession as e:
+                return jsonify({"responseData": {"message": f"Invalid Session ID '{stored_session_id.hex()}', it may have expired. Error: {str(e)}"}}), 400
+            except Exception as e:
+                return jsonify({"responseData": {"message": f"Error generating challenge: {str(e)}"}}), 500
+
+            response_data = {"challenge_b64": base64.b64encode(license_request.encode() if isinstance(license_request, str) else license_request).decode()}
+            return jsonify({"responseData": response_data}), 200
+        except Exception as e:
+            return jsonify({"responseData": {"message": f"Error generating challenge: {str(e)}"}}), 500
 
 
 
 # ============================================================================================================================== #
 
     def get_keys(self, device):
-        self.logging.debug(f"[DEBUG] get_keys called with device: {device}")
         session_entry = self.store_session.get(device)
         if not session_entry or "cdm" not in session_entry:
-            self.logging.debug(f"[DEBUG] No CDM session found for device: {device}")
             return jsonify({"responseData": {"message": f"No CDM session for {device} has been opened yet. No session to use."}}), 400
-    
+
         cdm = session_entry["cdm"]
-        
-        # Check the state of the CDM before the operation
-        self.logging.debug(f"[DEBUG] CDM state before: {cdm.__dict__}")
-        self.logging.debug(f"[DEBUG] Store sessions: {self.store_session}")
-        
-        # Use the stored session ID
         stored_session_id = bytes.fromhex(session_entry["session_id"])
         
-        self.logging.debug(f"[DEBUG] Using stored session ID: {stored_session_id.hex()}")
-        
         if not isinstance(self.license, str) or not self.license.strip():
-            self.logging.debug("[DEBUG] Invalid or empty license_message")
             return jsonify({"responseData": {"message": "Invalid or empty license_message."}}), 400
-    
+
         try:
-            self.logging.info(f"Parsing license for session {stored_session_id.hex()} on device {device}")
             decoded_license = base64.b64decode(self.license).decode("utf-8", errors="ignore")
-            self.logging.debug(f"[DEBUG] Decoded license: {decoded_license[:50]}...")
-            
             try:
                 cdm.parse_license(stored_session_id, decoded_license)
             except Exception as e:
-                self.logging.error(f"[ERROR] Error during parse_license: {str(e)}")
+                return jsonify({"responseData": {"message": f"Error parsing license: {str(e)}"}}), 500
             
             try:
                 keys = cdm.get_keys(stored_session_id)
-                response_keys = [
-                    {
-                        "key_id": key.key_id.hex(),
-                        "key": key.key.hex(),
-                    }
-                    for key in keys
-                ]
-                self.logging.debug(f"[DEBUG] Extracted keys: {response_keys}")
+                response_keys = []
+                for key in keys:
+                    if isinstance(key.key_id, uuid.UUID):
+                        key_id_hex = key.key_id.hex
+                    else:
+                        key_id_hex = str(key.key_id)
+                    
+                    if isinstance(key.key, bytes):
+                        key_hex = key.key.hex()
+                    else:
+                        key_hex = str(key.key)
+                    
+                    response_keys.append({
+                        "key_id": key_id_hex,
+                        "key": key_hex
+                    })
             except Exception as e:
-                self.logging.error(f"[ERROR] Error during get_keys: {str(e)}")
-                import traceback
-                self.logging.error(traceback.format_exc())
                 return jsonify({"responseData": {"message": f"Error getting keys: {str(e)}"}}), 500
-    
+
         except InvalidSession as e:
-            self.logging.debug(f"[DEBUG] Invalid Session ID '{stored_session_id.hex()}', possibly expired. Error: {str(e)}")
             return jsonify({"responseData": {"message": f"Invalid Session ID '{stored_session_id.hex()}', it may have expired."}}), 400
         except InvalidLicense as e:
-            self.logging.debug(f"[DEBUG] Invalid License: {e}")
             return jsonify({"responseData": {"message": f"Invalid License, {e}"}}), 400
         except Exception as e:
-            self.logging.debug(f"[DEBUG] Unexpected error: {e}")
             return jsonify({"responseData": {"message": f"Error, {e}"}}), 500
-    
+
         return jsonify({
             "responseData": {
                 "message": "Successfully parsed and loaded the Keys from the License message.",
                 "keys": response_keys
             }
         }), 200
+
 
     
 # ============================================================================================================================== #
