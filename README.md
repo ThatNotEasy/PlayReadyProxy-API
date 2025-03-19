@@ -69,3 +69,6 @@
 
 ### 11. Troubleshooting 🚨
    - If you encounter any issues or errors, please feel free to DM me on [Telegram](https://telegram.me/SurpriseMTFK).
+
+## Credit & References:
+- [DevLarley](https://github.com/DevLARLEY/WidevineProxy2)
